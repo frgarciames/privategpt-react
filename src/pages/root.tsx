@@ -22,13 +22,18 @@ export const RootPage = () => {
 
   useEffect(() => {
     if (!environment) return;
-    checkIsPgptHealthy(environment).then((isHealthy) => {
-      if (!isHealthy) {
+    checkIsPgptHealthy(environment)
+      .then((isHealthy) => {
+        if (!isHealthy) {
+          alert('The Private GPT instance is not healthy');
+          return deleteEnvironment();
+        }
+        navigate('/chat');
+      })
+      .catch(() => {
         alert('The Private GPT instance is not healthy');
-        return deleteEnvironment();
-      }
-      navigate('/chat');
-    });
+        deleteEnvironment();
+      });
   }, [environment]);
 
   if (environment) return <Outlet />;
