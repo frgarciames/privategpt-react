@@ -10,6 +10,20 @@ export const RootPage = () => {
     string | undefined
   >('pgpt-url', undefined);
 
+  const checkPrivateGptHealth = async (env: string) => {
+    try {
+      const isHealthy = await checkIsPgptHealthy(env);
+      if (!isHealthy) {
+        alert('The Private GPT instance is not healthy');
+        return deleteEnvironment();
+      }
+      navigate('/chat');
+    } catch {
+      alert('The Private GPT instance is not healthy');
+      deleteEnvironment();
+    }
+  };
+
   useEffect(() => {
     if (!environment) {
       const url = prompt(
@@ -17,23 +31,10 @@ export const RootPage = () => {
         'http://localhost:8001',
       );
       if (!url) return;
+      checkPrivateGptHealth(url);
+    } else {
+      checkPrivateGptHealth(environment);
     }
-  }, [environment]);
-
-  useEffect(() => {
-    if (!environment) return;
-    checkIsPgptHealthy(environment)
-      .then((isHealthy) => {
-        if (!isHealthy) {
-          alert('The Private GPT instance is not healthy');
-          return deleteEnvironment();
-        }
-        navigate('/chat');
-      })
-      .catch(() => {
-        alert('The Private GPT instance is not healthy');
-        deleteEnvironment();
-      });
   }, [environment]);
 
   if (environment) return <Outlet />;
