@@ -6,7 +6,7 @@ import { useLocalStorage } from 'usehooks-ts';
 
 export const RootPage = () => {
   const navigate = useNavigate();
-  const [environment, , deleteEnvironment] = useLocalStorage<
+  const [environment, setEnvironment, deleteEnvironment] = useLocalStorage<
     string | undefined
   >('pgpt-url', undefined);
 
@@ -31,6 +31,7 @@ export const RootPage = () => {
         'http://localhost:8001',
       );
       if (!url) return;
+      setEnvironment(url);
       checkPrivateGptHealth(url);
     } else {
       checkPrivateGptHealth(environment);
