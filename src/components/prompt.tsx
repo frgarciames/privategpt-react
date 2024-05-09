@@ -1,4 +1,4 @@
-import { CornerDownLeft, Mic, Paperclip, StopCircle } from 'lucide-react';
+import { CornerDownLeft, Paperclip, StopCircle } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import {
   Select,
@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useFiles, usePrompt } from 'privategpt-ts-beta/react';
+import { useFiles, usePrompt } from 'privategpt-ts/react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,17 +46,23 @@ const MODES = [
 
 export function Prompt() {
   const [mode, setMode] = useLocalStorage<(typeof MODES)[number]['value']>(
-    'pgpt-mode',
+    'pgpt-prompt-mode',
     'prompt',
   );
   const [environment] = useLocalStorage('pgpt-url', '');
   const [input, setInput] = useState('');
-  const [prompt, setPrompt] = useState<string | undefined>();
-  const { completion, isLoading, stop, clearCompletion } = usePrompt({
+  const [prompt, setPrompt] = useState<string>('');
+  const [systemPrompt, setSystemPrompt] = useLocalStorage<string>(
+    'system-prompt',
+    '',
+  );
+  const { completion, isLoading, stop, setCompletion } = usePrompt({
     client: PrivategptClient.getInstance(environment),
     prompt,
     useContext: mode === 'query',
-    includeSources: mode === 'search',
+    enabled: prompt.length > 0 && ['query', 'prompt'].includes(mode),
+    includeSources: mode === 'query',
+    systemPrompt,
   });
   const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
     useFiles({
@@ -66,15 +72,31 @@ export function Prompt() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const content = form.get('content') as string;
-    if (!content) return;
+    if (!input) return;
+    const content = input.trim();
     addPrompt(content);
+    if (mode === 'search') {
+      searchDocs(content);
+    }
   };
 
   const addPrompt = (message: string) => {
     setPrompt(message);
     setInput('');
+  };
+
+  const searchDocs = async (input: string) => {
+    const chunks = await PrivategptClient.getInstance(
+      environment,
+    ).contextChunks.chunksRetrieval({ text: input });
+    const content = chunks.data.reduce((acc, chunk, index) => {
+      return `${acc}**${index + 1}.${
+        chunk.document.docMetadata?.file_name
+      } (page ${chunk.document.docMetadata?.page_label})** \n\n ${
+        chunk.document.docMetadata?.original_text
+      } \n\n`;
+    }, '');
+    setCompletion(content);
   };
 
   return (
@@ -88,8 +110,8 @@ export function Prompt() {
           <Button
             variant="ghost"
             onClick={() => {
-              setPrompt(undefined);
-              clearCompletion();
+              setPrompt('');
+              setCompletion(null);
             }}
           >
             Clear
@@ -166,16 +188,17 @@ export function Prompt() {
                     {isUploadingFile && <p>Uploading file...</p>}
                   </div>
                 )}
-
-                {/* <div className="grid gap-3">
-                  <Label htmlFor="content">Content</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="You are a..."
-                    className="min-h-[9.5rem]"
-                  />
-                </div> */}
               </fieldset>
+              <div className="grid gap-3">
+                <Label htmlFor="content">System prompt</Label>
+                <Textarea
+                  id="content"
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder="You are a..."
+                  className="min-h-[9.5rem]"
+                />
+              </div>
             </form>
           </div>
           <div className="relative flex-col flex h-full space-y-4 flex- rounded-xl bg-muted/50 p-4 lg:col-span-2">
@@ -243,6 +266,7 @@ export function Prompt() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        type="button"
                         onClick={() => {
                           const input = document.createElement(
                             'input',
@@ -263,17 +287,6 @@ export function Prompt() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">Attach File</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Mic className="size-4" />
-                        <span className="sr-only">Use Microphone</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Use Microphone</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 {isLoading ? (

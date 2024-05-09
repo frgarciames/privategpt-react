@@ -1,4 +1,4 @@
-import { PrivategptApiClient } from 'privategpt-ts-beta';
+import { PrivategptApiClient } from 'privategpt-ts';
 
 export const checkIsPgptHealthy = async (url: string) => {
   const isHealthy = await PrivategptClient.getInstance(url).health.health();

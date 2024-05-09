@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { checkIsPgptHealthy } from '@/lib/pgpt';
 import { useEffect } from 'react';
@@ -6,6 +6,7 @@ import { useLocalStorage } from 'usehooks-ts';
 
 export const RootPage = () => {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [environment, setEnvironment, deleteEnvironment] = useLocalStorage<
     string | undefined
   >('pgpt-url', undefined);
@@ -17,7 +18,9 @@ export const RootPage = () => {
         alert('The Private GPT instance is not healthy');
         return deleteEnvironment();
       }
-      navigate('/chat');
+      if (pathname === '/') {
+        navigate('/chat');
+      }
     } catch {
       alert('The Private GPT instance is not healthy');
       deleteEnvironment();

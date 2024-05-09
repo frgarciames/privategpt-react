@@ -1,4 +1,4 @@
-import { CornerDownLeft, Mic, Paperclip, StopCircle } from 'lucide-react';
+import { CornerDownLeft, Paperclip, StopCircle } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import {
   Select,
@@ -13,13 +13,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useChat, useFiles } from 'privategpt-ts-beta/react';
+import { useChat, useFiles } from 'privategpt-ts/react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
-import { PrivategptApi } from 'privategpt-ts-beta';
+import { PrivategptApi } from 'privategpt-ts';
 import { PrivategptClient } from '@/lib/pgpt';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -47,11 +47,15 @@ const MODES = [
 
 export function Chat() {
   const [mode, setMode] = useLocalStorage<(typeof MODES)[number]['value']>(
-    'pgpt-mode',
+    'pgpt-chat-mode',
     'chat',
   );
   const [environment] = useLocalStorage('pgpt-url', '');
   const [input, setInput] = useState('');
+  const [systemPrompt, setSystemPrompt] = useLocalStorage<string>(
+    'system-prompt',
+    '',
+  );
   const [messages, setMessages, clearChat] = useLocalStorage<
     PrivategptApi.OpenAiMessage[]
   >('messages', []);
@@ -60,7 +64,9 @@ export function Chat() {
     messages,
     onFinish: (c) => addMessage({ role: 'assistant', content: c }),
     useContext: mode === 'query',
-    includeSources: mode === 'search',
+    enabled: ['query', 'chat'].includes(mode),
+    includeSources: mode === 'query',
+    systemPrompt,
   });
   const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
     useFiles({
@@ -70,15 +76,31 @@ export function Chat() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const content = form.get('content') as string;
-    if (!content) return;
+    if (!input) return;
+    const content = input.trim();
     addMessage({ role: 'user', content });
+    if (mode === 'search') {
+      searchDocs(content);
+    }
   };
 
   const addMessage = (message: PrivategptApi.OpenAiMessage) => {
     setMessages((prev) => [...prev, message]);
     setInput('');
+  };
+
+  const searchDocs = async (input: string) => {
+    const chunks = await PrivategptClient.getInstance(
+      environment,
+    ).contextChunks.chunksRetrieval({ text: input });
+    const content = chunks.data.reduce((acc, chunk, index) => {
+      return `${acc}**${index + 1}.${
+        chunk.document.docMetadata?.file_name
+      } (page ${chunk.document.docMetadata?.page_label})** \n\n ${
+        chunk.document.docMetadata?.original_text
+      } \n\n`;
+    }, '');
+    addMessage({ role: 'assistant', content });
   };
 
   return (
@@ -174,6 +196,16 @@ export function Chat() {
                   />
                 </div> */}
               </fieldset>
+              <div className="grid gap-3">
+                <Label htmlFor="content">System prompt</Label>
+                <Textarea
+                  id="content"
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder="You are a..."
+                  className="min-h-[9.5rem]"
+                />
+              </div>
             </form>
           </div>
           <div className="relative flex-col flex h-full space-y-4 flex- rounded-xl bg-muted/50 p-4 lg:col-span-2">
@@ -247,6 +279,7 @@ export function Chat() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        type="button"
                         onClick={() => {
                           const input = document.createElement(
                             'input',
@@ -267,17 +300,6 @@ export function Chat() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">Attach File</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Mic className="size-4" />
-                        <span className="sr-only">Use Microphone</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Use Microphone</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 {isLoading ? (
