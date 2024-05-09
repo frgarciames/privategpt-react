@@ -1,5 +1,5 @@
 import { CornerDownLeft, Paperclip, StopCircle } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -46,6 +46,7 @@ const MODES = [
 ] as const;
 
 export function Chat() {
+  const messageRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useLocalStorage<(typeof MODES)[number]['value']>(
     'pgpt-chat-mode',
     'chat',
@@ -57,12 +58,21 @@ export function Chat() {
     '',
   );
   const [messages, setMessages, clearChat] = useLocalStorage<
-    PrivategptApi.OpenAiMessage[]
+    Array<
+      PrivategptApi.OpenAiMessage & {
+        sources?: PrivategptApi.Chunk[];
+      }
+    >
   >('messages', []);
   const { completion, isLoading, stop } = useChat({
     client: PrivategptClient.getInstance(environment),
-    messages,
-    onFinish: (c) => addMessage({ role: 'assistant', content: c }),
+    messages: messages.map(({ sources: _, ...rest }) => rest),
+    onFinish: ({ completion: c, sources: s }) => {
+      addMessage({ role: 'assistant', content: c, sources: s });
+      setTimeout(() => {
+        messageRef.current?.focus();
+      }, 100);
+    },
     useContext: mode === 'query',
     enabled: ['query', 'chat'].includes(mode),
     includeSources: mode === 'query',
@@ -84,7 +94,11 @@ export function Chat() {
     }
   };
 
-  const addMessage = (message: PrivategptApi.OpenAiMessage) => {
+  const addMessage = (
+    message: PrivategptApi.OpenAiMessage & {
+      sources?: PrivategptApi.Chunk[];
+    },
+  ) => {
     setMessages((prev) => [...prev, message]);
     setInput('');
   };
@@ -94,14 +108,18 @@ export function Chat() {
       environment,
     ).contextChunks.chunksRetrieval({ text: input });
     const content = chunks.data.reduce((acc, chunk, index) => {
-      return `${acc}**${index + 1}.${
-        chunk.document.docMetadata?.file_name
-      } (page ${chunk.document.docMetadata?.page_label})** \n\n ${
-        chunk.document.docMetadata?.original_text
-      } \n\n`;
+      return `${acc}**${index + 1}.${chunk.document.docMetadata?.file_name}${
+        chunk.document.docMetadata?.page_label
+          ? ` (page ${chunk.document.docMetadata?.page_label})** `
+          : '**'
+      }\n\n ${chunk.document.docMetadata?.original_text} \n\n  `;
     }, '');
     addMessage({ role: 'assistant', content });
   };
+
+  useEffect(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+  }, [completion]);
 
   return (
     <div className="grid h-screen w-full">
@@ -186,15 +204,6 @@ export function Chat() {
                     {isUploadingFile && <p>Uploading file...</p>}
                   </div>
                 )}
-
-                {/* <div className="grid gap-3">
-                  <Label htmlFor="content">Content</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="You are a..."
-                    className="min-h-[9.5rem]"
-                  />
-                </div> */}
               </fieldset>
               <div className="grid gap-3">
                 <Label htmlFor="content">System prompt</Label>
@@ -232,12 +241,24 @@ export function Chat() {
                     <Badge variant="outline" className="w-fit bg-muted/100">
                       {message.role}
                     </Badge>
-                    <p
-                      className="text-sm break-all"
+                    <div
+                      className="text-sm prose text-black marker:text-black"
                       dangerouslySetInnerHTML={{
                         __html: marked.parse(message.content || ''),
                       }}
                     />
+                    {message.sources && message.sources?.length > 0 && (
+                      <div>
+                        <p className="font-bold">Sources:</p>
+                        {message.sources.map((source) => (
+                          <p key={source.document.docId}>
+                            <strong>
+                              {source.document.docMetadata?.file_name as string}
+                            </strong>
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {completion && (
@@ -245,8 +266,8 @@ export function Chat() {
                     <Badge variant="outline" className="w-fit bg-muted/100">
                       assistant
                     </Badge>
-                    <p
-                      className="text-sm break-all"
+                    <div
+                      className="text-sm prose marker:text-black"
                       dangerouslySetInnerHTML={{
                         __html: marked.parse(completion),
                       }}
@@ -264,12 +285,22 @@ export function Chat() {
                 Message
               </Label>
               <Textarea
+                ref={messageRef}
                 disabled={isLoading}
                 id="message"
                 placeholder="Type your message here..."
                 className="min-h-12 resize-none border-0 p-3 shadow-none focus-visible:ring-0"
                 value={input}
                 name="content"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.dispatchEvent(
+                      new Event('submit', { bubbles: true }),
+                    );
+                  }
+                }}
+                autoFocus
                 onChange={(event) => setInput(event.target.value)}
               />
               <div className="flex items-center p-3 pt-0">

@@ -1,5 +1,5 @@
 import { CornerDownLeft, Paperclip, StopCircle } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
+import { PrivategptApi } from 'privategpt-ts';
 import { PrivategptClient } from '@/lib/pgpt';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -45,9 +46,14 @@ const MODES = [
 ] as const;
 
 export function Prompt() {
+  const messageRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useLocalStorage<(typeof MODES)[number]['value']>(
     'pgpt-prompt-mode',
     'prompt',
+  );
+  const [sources, setSources] = useLocalStorage(
+    'pgpt-sources',
+    [] as PrivategptApi.Chunk[],
   );
   const [environment] = useLocalStorage('pgpt-url', '');
   const [input, setInput] = useState('');
@@ -61,6 +67,12 @@ export function Prompt() {
     prompt,
     useContext: mode === 'query',
     enabled: prompt.length > 0 && ['query', 'prompt'].includes(mode),
+    onFinish: ({ sources }) => {
+      setSources(sources);
+      setTimeout(() => {
+        messageRef.current?.focus();
+      }, 100);
+    },
     includeSources: mode === 'query',
     systemPrompt,
   });
@@ -99,6 +111,14 @@ export function Prompt() {
     setCompletion(content);
   };
 
+  useEffect(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+  }, [completion]);
+
+  useEffect(() => {
+    setSources([]);
+  }, [prompt]);
+
   return (
     <div className="grid h-screen w-full">
       <div className="flex flex-col">
@@ -111,7 +131,7 @@ export function Prompt() {
             variant="ghost"
             onClick={() => {
               setPrompt('');
-              setCompletion(null);
+              setCompletion('');
             }}
           >
             Clear
@@ -219,8 +239,8 @@ export function Prompt() {
                     <Badge variant="outline" className="w-fit bg-muted/100">
                       user
                     </Badge>
-                    <p
-                      className="text-sm break-all"
+                    <div
+                      className="text-sm prose marker:text-black"
                       dangerouslySetInnerHTML={{
                         __html: marked.parse(prompt),
                       }}
@@ -232,12 +252,24 @@ export function Prompt() {
                     <Badge variant="outline" className="w-fit bg-muted/100">
                       assistant
                     </Badge>
-                    <p
-                      className="text-sm break-all"
+                    <div
+                      className="text-sm prose text-black marker:text-black"
                       dangerouslySetInnerHTML={{
                         __html: marked.parse(completion),
                       }}
                     />
+                    {sources?.length > 0 && (
+                      <div>
+                        <p className="font-bold">Sources:</p>
+                        {sources.map((source) => (
+                          <p key={source.document.docId}>
+                            <strong>
+                              {source.document.docMetadata?.file_name as string}
+                            </strong>
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -252,11 +284,21 @@ export function Prompt() {
               </Label>
               <Textarea
                 id="message"
+                ref={messageRef}
                 disabled={isLoading}
                 placeholder="Type your message here..."
                 className="min-h-12 resize-none border-0 p-3 shadow-none focus-visible:ring-0"
                 value={input}
                 name="content"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.dispatchEvent(
+                      new Event('submit', { bubbles: true }),
+                    );
+                  }
+                }}
+                autoFocus
                 onChange={(event) => setInput(event.target.value)}
               />
               <div className="flex items-center p-3 pt-0">
