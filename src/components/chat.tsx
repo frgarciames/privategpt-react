@@ -64,6 +64,7 @@ export function Chat() {
       }
     >
   >('messages', []);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const { completion, isLoading, stop } = useChat({
     client: PrivategptClient.getInstance(environment),
     messages: messages.map(({ sources: _, ...rest }) => rest),
@@ -77,6 +78,13 @@ export function Chat() {
     enabled: ['query', 'chat'].includes(mode),
     includeSources: mode === 'query',
     systemPrompt,
+    ...(selectedFiles.length > 0
+      ? {
+          contextFilter: {
+            docsIds: selectedFiles,
+          },
+        }
+      : {}),
   });
   const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
     useFiles({
@@ -192,10 +200,33 @@ export function Chat() {
                             onClick={(e) => {
                               e.preventDefault();
                               deleteFile(file.fileName);
+                              setSelectedFiles(
+                                selectedFiles.filter(
+                                  (f) => f !== file.fileName,
+                                ),
+                              );
                             }}
                           >
                             x
                           </Button>
+                          <input
+                            type="checkbox"
+                            checked={selectedFiles.includes(file.fileName)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFiles([
+                                  ...selectedFiles,
+                                  file.fileName,
+                                ]);
+                              } else {
+                                setSelectedFiles(
+                                  selectedFiles.filter(
+                                    (f) => f !== file.fileName,
+                                  ),
+                                );
+                              }
+                            }}
+                          />
                         </div>
                       ))
                     ) : (
