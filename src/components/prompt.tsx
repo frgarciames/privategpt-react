@@ -76,7 +76,13 @@ export function Prompt() {
     },
     includeSources: mode === 'query',
     systemPrompt,
-    contextFilter: selectedFiles,
+    ...(selectedFiles.length > 0
+      ? {
+          contextFilter: {
+            docsIds: selectedFiles,
+          },
+        }
+      : {}),
   });
   const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
     useFiles({
@@ -198,7 +204,11 @@ export function Prompt() {
                             onClick={(e) => {
                               e.preventDefault();
                               deleteFile(file.fileName);
-                              setSelectedFiles(selectedFiles.filter(f => f !== file.fileName));
+                              setSelectedFiles(
+                                selectedFiles.filter(
+                                  (f) => f !== file.fileName,
+                                ),
+                              );
                             }}
                           >
                             x
@@ -208,9 +218,16 @@ export function Prompt() {
                             checked={selectedFiles.includes(file.fileName)}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedFiles([...selectedFiles, file.fileName]);
+                                setSelectedFiles([
+                                  ...selectedFiles,
+                                  file.fileName,
+                                ]);
                               } else {
-                                setSelectedFiles(selectedFiles.filter(f => f !== file.fileName));
+                                setSelectedFiles(
+                                  selectedFiles.filter(
+                                    (f) => f !== file.fileName,
+                                  ),
+                                );
                               }
                             }}
                           />
