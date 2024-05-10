@@ -17,6 +17,7 @@ import { useFiles, usePrompt } from 'privategpt-ts/react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { PrivategptApi } from 'privategpt-ts';
@@ -62,6 +63,16 @@ export function Prompt() {
     'system-prompt',
     '',
   );
+  const [selectedFiles, setSelectedFiles] = useLocalStorage<string[]>(
+    'selected-files',
+    [],
+  );
+  const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
+    useFiles({
+      client: PrivategptClient.getInstance(environment),
+      fetchFiles: true,
+    });
+
   const { completion, isLoading, stop, setCompletion } = usePrompt({
     client: PrivategptClient.getInstance(environment),
     prompt,
@@ -75,12 +86,21 @@ export function Prompt() {
     },
     includeSources: mode === 'query',
     systemPrompt,
+    contextFilter: {
+      docsIds: ['query', 'search'].includes(mode)
+        ? selectedFiles.reduce((acc, fileName) => {
+            const groupedDocs = files?.filter((f) => f.fileName === fileName);
+            if (!groupedDocs) return acc;
+            const docIds = [] as string[];
+            groupedDocs.forEach((d) => {
+              docIds.push(...d.docs.map((d) => d.docId));
+            });
+            acc.push(...docIds);
+            return acc;
+          }, [] as string[])
+        : [],
+    },
   });
-  const { addFile, files, deleteFile, isUploadingFile, isFetchingFiles } =
-    useFiles({
-      client: PrivategptClient.getInstance(environment),
-      fetchFiles: true,
-    });
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -170,45 +190,102 @@ export function Prompt() {
                   </Select>
                 </div>
               </fieldset>
-              <fieldset
-                className={cn('grid gap-6 rounded-lg border p-4', {
-                  'bg-muted/50': isUploadingFile || isFetchingFiles,
-                })}
-              >
-                <legend className="-ml-1 px-1 text-sm font-medium">
-                  Files
-                </legend>
-                {isFetchingFiles ? (
-                  <p>Fetching files...</p>
-                ) : (
-                  <div className="grid gap-3">
-                    {files && files.length > 0 ? (
-                      files.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex justify-between items-center"
-                        >
-                          <p>{file.fileName}</p>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            className="size-6"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              deleteFile(file.fileName);
-                            }}
-                          >
-                            x
-                          </Button>
-                        </div>
-                      ))
+              {['query', 'search'].includes(mode) && (
+                <>
+                  <fieldset
+                    className={cn('grid gap-6 rounded-lg border p-4', {
+                      'bg-muted/50': isUploadingFile || isFetchingFiles,
+                    })}
+                  >
+                    <legend className="-ml-1 px-1 text-sm font-medium">
+                      Files
+                    </legend>
+                    {isFetchingFiles ? (
+                      <p>Fetching files...</p>
                     ) : (
-                      <p>No files ingested</p>
+                      <div className="grid gap-3">
+                        {files && files.length > 0 ? (
+                          files.map((file, index) => (
+                            <div
+                              key={index}
+                              className="flex justify-between items-center"
+                            >
+                              <p>{file.fileName}</p>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="size-6"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  deleteFile(file.fileName);
+                                  setSelectedFiles(
+                                    selectedFiles.filter(
+                                      (f) => f !== file.fileName,
+                                    ),
+                                  );
+                                }}
+                              >
+                                x
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <p>No files ingested</p>
+                        )}
+                        {isUploadingFile && <p>Uploading file...</p>}
+                      </div>
                     )}
-                    {isUploadingFile && <p>Uploading file...</p>}
-                  </div>
-                )}
-              </fieldset>
+                  </fieldset>
+                  {mode === 'query' && (
+                    <fieldset
+                      className={cn('grid gap-6 rounded-lg border p-4', {
+                        'bg-muted/50': isUploadingFile || isFetchingFiles,
+                      })}
+                    >
+                      <legend className="-ml-1 px-1 text-sm font-medium">
+                        Ask to your docs (if none is selected, it will ask to
+                        all of them)
+                      </legend>
+                      {isFetchingFiles ? (
+                        <p>Fetching files...</p>
+                      ) : (
+                        <div className="grid gap-3">
+                          {files && files.length > 0 ? (
+                            files.map((file, index) => (
+                              <div
+                                key={index}
+                                className="flex justify-between items-center"
+                              >
+                                <p>{file.fileName}</p>
+                                <Checkbox
+                                  checked={selectedFiles.includes(
+                                    file.fileName,
+                                  )}
+                                  onCheckedChange={() => {
+                                    const isSelected = selectedFiles.includes(
+                                      file.fileName,
+                                    );
+                                    setSelectedFiles(
+                                      isSelected
+                                        ? selectedFiles.filter(
+                                            (f) => f !== file.fileName,
+                                          )
+                                        : [...selectedFiles, file.fileName],
+                                    );
+                                  }}
+                                />
+                              </div>
+                            ))
+                          ) : (
+                            <p>No files ingested</p>
+                          )}
+                          {isUploadingFile && <p>Uploading file...</p>}
+                        </div>
+                      )}
+                    </fieldset>
+                  )}
+                </>
+              )}
               <div className="grid gap-3">
                 <Label htmlFor="content">System prompt</Label>
                 <Textarea

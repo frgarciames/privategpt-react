@@ -1,7 +1,5 @@
-import { Prompt } from "@/components/prompt"
+import { Prompt } from '@/components/prompt';
 
 export const PromptPage = () => {
-  return (
-    <Prompt />
-  )
-}
+  return <Prompt />;
+};
