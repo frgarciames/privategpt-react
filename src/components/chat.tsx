@@ -13,14 +13,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useChat, useFiles } from 'privategpt-ts/react';
+import { useChat, useFiles } from 'privategpt-sdk-web/react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
-import { PrivategptApi } from 'privategpt-ts';
+import { PrivategptApi } from 'privategpt-sdk-web';
 import { PrivategptClient } from '@/lib/pgpt';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
